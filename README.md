@@ -4,7 +4,7 @@
 
 ## 🌟 特点：快速、批量压缩、支持主题切换，界面美观且易用。
 
-立即体验 🚀 [在线图片压缩工具]([https://nshpiter.github.io/Image-compression-tool/](https://image-compression-tool-eight.vercel.app/))
+立即体验 🚀 [在线图片压缩工具](https://image-compression-tool-eight.vercel.app/)
 
 ## 🎯 功能亮点
 
