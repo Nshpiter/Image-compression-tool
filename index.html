@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="免费在线图片压缩工具，支持PNG、JPG、WebP等多种格式，快速批量压缩，无需上传至服务器">
+    <meta name="keywords" content="图片压缩,在线压缩,批量压缩,PNG压缩,JPG压缩,WebP压缩">
+    <title>图片压缩工具 - 在线免费压缩图片</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --text-color: #2d3748;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+            --border-color: #a0aec0;
+            --hover-bg: #edf2f7;
+            --accent-color: #805ad5;
+            --btn-gradient: linear-gradient(135deg, #805ad5 0%, #6b46c1 100%);
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            --text-color: #e2e8f0;
+            --card-bg: rgba(45, 55, 72, 0.95);
+            --shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            --border-color: #4a5568;
+            --hover-bg: #2d3748;
+            --accent-color: #9f7aea;
+            --btn-gradient: linear-gradient(135deg, #9f7aea 0%, #805ad5 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .preloader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1e2a44 0%, #2d4a7e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .preloader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hexagon {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: transparent;
+            border: 2px solid rgba(66, 153, 225, 0.8);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            animation: rotate 2s linear infinite;
+            box-shadow: 0 0 20px rgba(66, 153, 225, 0.5);
+        }
+
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #63b3ed;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #63b3ed;
+            animation: float 1.5s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s; }
+        .particle:nth-child(2) { top: 30%; left: 80%; animation-delay: 0.3s; }
+        .particle:nth-child(3) { top: 70%; left: 10%; animation-delay: 0.6s; }
+        .particle:nth-child(4) { top: 90%; left: 70%; animation-delay: 0.9s; }
+
+        .loader-text {
+            color: #ffffff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+            50% { transform: translateY(-15px) scale(1.2); opacity: 1; }
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px rgba(66, 153, 225, 0.8); }
+            to { text-shadow: 0 0 20px rgba(66, 153, 225, 1); }
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .container.loaded {
+            opacity: 1;
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem 0;
+            animation: fadeIn 1s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 2.75rem;
+            margin-bottom: 0.75rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        header p {
+            color: #718096;
+            font-size: 1.125rem;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 20px;
+            padding: 3.5rem 2rem;
+            text-align: center;
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-color);
+            background: var(--hover-bg);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-content p:first-child {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            color: #718096;
+            font-size: 0.95rem;
+            margin-top: 0.5rem;
+        }
+
+        .preview-container {
+            display: none;
+            margin-top: 2.5rem;
+        }
+
+        .preview-container.active {
+            display: block;
+        }
+
+        .preview-container.single {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+        }
+
+        .preview-container.batch {
+            display: flex;
+            overflow-x: auto;
+            gap: 2rem;
+            padding-bottom: 1rem;
+        }
+
+        .preview-box {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .preview-box:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        .preview-box h3 {
+            margin-bottom: 1rem;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .image-container {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            background: var(--hover-bg);
+        }
+
+        .image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .batch-item {
+            flex: 0 0 600px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .control-panel {
+            margin-top: 2.5rem;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .control-panel.active {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            opacity: 1;
+        }
+
+        .quality-control {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .quality-control label {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .quality-value {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            font-size: 1rem;
+            font-weight: 500;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            background: linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) var(--range-progress), #e2e8f0 var(--range-progress), #e2e8f0 100%);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--btn-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1.125rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(128, 90, 213, 0.3);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(128, 90, 213, 0.4);
+        }
+
+        .mode-switch {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 2rem 0;
+            gap: 1rem;
+            font-weight: 500;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 64px;
+            height: 36px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #cbd5e1;
+            transition: .3s;
+            border-radius: 36px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 28px;
+            width: 28px;
+            left: 4px;
+            bottom: 4px;
+            background: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        input:checked + .slider {
+            background: var(--accent-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(28px);
+        }
+
+        .file-info {
+            font-size: 0.95rem;
+            padding: 0.75rem;
+            background: var(--hover-bg);
+            border-radius: 10px;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            animation: fadeInInfo 0.5s ease forwards;
+        }
+
+        .file-info .size {
+            font-weight: normal;
+        }
+
+        .file-info .savings {
+            color: #38a169;
+            font-weight: 600;
+        }
+
+        @keyframes fadeInInfo {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 2rem 0;
+            font-size: 0.95rem;
+            border-top: 1px solid rgba(160, 174, 192, 0.2);
+            background: var(--card-bg);
+        }
+
+        footer p {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: var(--card-bg);
+            border: none;
+            padding: 0.5rem;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .theme-toggle svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-color);
+        }
+
+        @media (max-width: 768px) {
+            .preview-container.single {
+                grid-template-columns: 1fr;
+            }
+
+            .batch-item {
+                flex: 0 0 100%;
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .upload-area {
+                padding: 2.5rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="preloader" id="preloader">
+        <div class="loader">
+            <div class="hexagon"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <span class="loader-text">Loading</span>
+        </div>
+    </div>
+
+    <button class="theme-toggle" id="themeToggle" title="切换主题">
+        <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 4.875a.75.75 0 011.06-.015l1.59 1.545a.75.75 0 01-1.045 1.075L7.515 5.935a.75.75 0 01-.015-1.06zM2.25 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3a.75.75 0 01-.75-.75zm3.225 6.615a.75.75 0 011.06.015l1.59-1.545a.75.75 0 11-1.045-1.075l-1.59 1.545a.75.75 0 01-.015 1.06zM12 21.75a.75.75 0 01-.75.75v-2.25a.75.75 0 011.5 0v2.25zM18.75 17.385a.75.75 0 01-.015 1.06l-1.59 1.545a.75.75 0 01-1.045-1.075l1.59-1.545a.75.75 0 011.06-.015zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5h2.25a.75.75 0 01.75.75zM17.385 6.525a.75.75 0 011.06-.015l1.59 1.545a.75.75 0 01-1.045 1.075L17.4 7.585a.75.75 0 01-.015-1.06zM12 18a6 6 0 100-12 6 6 0 000 12z"/>
+        </svg>
+    </button>
+
+    <div class="container" id="mainContent">
+        <header>
+            <h1>图片压缩工具</h1>
+            <p>专业的在线图片压缩工具，支持 PNG、JPG、WebP、GIF、BMP、TIFF 格式，保护隐私无需上传服务器</p>
+        </header>
+
+        <main>
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                <div class="upload-content">
+                    <p>点击或拖拽图片到这里</p>
+                    <p class="upload-hint">支持 PNG、JPG、WebP、GIF、BMP、TIFF 格式，可多选（单个文件最大 10MB）</p>
+                </div>
+            </div>
+
+            <div class="mode-switch">
+                <label class="switch">
+                    <input type="checkbox" id="batchMode">
+                    <span class="slider"></span>
+                </label>
+                <span>批量压缩模式</span>
+            </div>
+
+            <div class="preview-container" id="previewContainer"></div>
+
+            <div class="control-panel" id="controlPanel">
+                <div class="quality-control">
+                    <label for="qualitySlider">压缩质量：<span class="quality-value" id="qualityValue">80%</span></label>
+                    <input type="range" id="qualitySlider" min="1" max="100" value="80">
+                </div>
+                <div id="downloadButtons">
+                    <button id="downloadBtn" class="download-btn">下载压缩后的图片</button>
+                    <button id="downloadAllBtn" class="download-btn" style="display: none;">下载全部压缩图片 (ZIP)</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>🔒 本工具完全在浏览器中运行，不会上传您的图片到服务器，保护您的隐私安全。</p>
+        </footer>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const controlPanel = document.getElementById('controlPanel');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityValue = document.getElementById('qualityValue');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const batchMode = document.getElementById('batchMode');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+
+        let currentFiles = [];
+        let isDarkMode = false;
+        let compressedFiles = [];
+
+        window.addEventListener('load', () => {
+            const preloader = document.getElementById('preloader');
+            const mainContent = document.getElementById('mainContent');
+            setTimeout(() => {
+                preloader.classList.add('hidden');
+                mainContent.classList.add('loaded');
+                document.body.style.overflow = 'auto';
+            }, 800);
+        });
+
+        batchMode.addEventListener('change', (e) => {
+            fileInput.multiple = e.target.checked;
+            resetPreview();
+            if (!e.target.checked) {
+                downloadAllBtn.style.display = 'none';
+                downloadBtn.style.display = 'block';
+            }
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--accent-color)';
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--border-color)';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--border-color)';
+            const files = Array.from(e.dataTransfer.files);
+            handleFiles(files);
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            handleFiles(files);
+        });
+
+        async function handleFiles(files) {
+            const validFiles = files.filter(file => {
+                if (!file.type.startsWith('image/')) {
+                    alert(`文件 ${file.name} 不是图片！`);
+                    return false;
+                }
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`文件 ${file.name} 大小超过10MB！`);
+                    return false;
+                }
+                return true;
+            });
+
+            if (validFiles.length === 0) return;
+
+            currentFiles = validFiles;
+            resetPreview();
+            previewContainer.classList.add('active');
+            controlPanel.classList.add('active');
+
+            compressedFiles = [];
+            if (!batchMode.checked && validFiles.length === 1) {
+                previewContainer.classList.add('single');
+                await addSingleFilePreview(validFiles[0]);
+            } else {
+                previewContainer.classList.add('batch');
+                for (const file of validFiles) {
+                    await addBatchFilePreview(file);
+                }
+            }
+
+            if (batchMode.checked && validFiles.length > 1) {
+                downloadBtn.style.display = 'none';
+                downloadAllBtn.style.display = 'block';
+            } else {
+                downloadBtn.style.display = 'block';
+                downloadAllBtn.style.display = 'none';
+            }
+        }
+
+        function resetPreview() {
+            previewContainer.innerHTML = '';
+            previewContainer.classList.remove('single', 'batch');
+            compressedFiles = [];
+        }
+
+        async function addSingleFilePreview(file) {
+            const originalBox = document.createElement('div');
+            const compressedBox = document.createElement('div');
+            originalBox.classList.add('preview-box');
+            compressedBox.classList.add('preview-box');
+
+            originalBox.innerHTML = `
+                <h3>原图</h3>
+                <div class="image-container">
+                    <img class="original-preview" alt="原图预览">
+                </div>
+                <div class="file-info original-info">
+                    <span class="size">文件大小: ${(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                </div>
+            `;
+
+            compressedBox.innerHTML = `
+                <h3>压缩后</h3>
+                <div class="image-container">
+                    <img class="compressed-preview" alt="压缩后预览">
+                </div>
+                <div class="file-info compressed-info">
+                    <span class="size"></span>
+                    <span class="savings"></span>
+                </div>
+            `;
+
+            previewContainer.appendChild(originalBox);
+            previewContainer.appendChild(compressedBox);
+
+            const originalPreview = originalBox.querySelector('.original-preview');
+            const compressedPreview = compressedBox.querySelector('.compressed-preview');
+            const compressedInfo = compressedBox.querySelector('.compressed-info');
+
+            originalPreview.src = URL.createObjectURL(file);
+            await compressImage(file, mapQuality(qualitySlider.value), compressedPreview, compressedInfo);
+        }
+
+        async function addBatchFilePreview(file) {
+            const batchItem = document.createElement('div');
+            batchItem.classList.add('batch-item');
+
+            batchItem.innerHTML = `
+                <div class="preview-box">
+                    <h3>原图 - ${file.name}</h3>
+                    <div class="image-container">
+                        <img class="original-preview" alt="原图预览">
+                    </div>
+                    <div class="file-info original-info">
+                        <span class="size">文件大小: ${(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                    </div>
+                </div>
+                <div class="preview-box">
+                    <h3>压缩后</h3>
+                    <div class="image-container">
+                        <img class="compressed-preview" alt="压缩后预览">
+                    </div>
+                    <div class="file-info compressed-info">
+                        <span class="size"></span>
+                        <span class="savings"></span>
+                    </div>
+                </div>
+            `;
+
+            previewContainer.appendChild(batchItem);
+
+            const originalPreview = batchItem.querySelector('.original-preview');
+            const compressedPreview = batchItem.querySelector('.compressed-preview');
+            const compressedInfo = batchItem.querySelector('.compressed-info');
+
+            originalPreview.src = URL.createObjectURL(file);
+            await compressImage(file, mapQuality(qualitySlider.value), compressedPreview, compressedInfo);
+        }
+
+        function mapQuality(sliderValue) {
+            const minQuality = 0.1;
+            const maxQuality = 1.0;
+            const value = sliderValue / 100;
+            const adjustedQuality = minQuality + (maxQuality - minQuality) * Math.pow(value, 3);
+            return Math.min(Math.max(adjustedQuality, minQuality), maxQuality);
+        }
+
+        async function compressImage(file, quality, compressedPreview, compressedInfo) {
+            try {
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = URL.createObjectURL(file);
+                });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+
+                let mimeType = 'image/jpeg';
+                if (file.type === 'image/png' && quality === 1) {
+                    mimeType = 'image/png';
+                }
+
+                const blob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, mimeType, quality);
+                });
+
+                if (!blob) throw new Error('压缩失败');
+
+                const compressedUrl = URL.createObjectURL(blob);
+                compressedPreview.src = compressedUrl;
+
+                const compressedSize = blob.size / (1024 * 1024);
+                const savingsPercent = ((1 - blob.size / file.size) * 100).toFixed(1);
+
+                compressedInfo.querySelector('.size').textContent = `文件大小: ${compressedSize.toFixed(2)} MB`;
+                if (quality < 1) {
+                    compressedInfo.querySelector('.savings').textContent = `节省: ${savingsPercent}%`;
+                } else {
+                    compressedInfo.querySelector('.savings').textContent = '';
+                }
+
+                compressedFiles.push({ file, blob, url: compressedUrl, mimeType });
+
+                if (!batchMode.checked && compressedFiles.length === 1) {
+                    downloadBtn.onclick = () => {
+                        const link = document.createElement('a');
+                        link.href = compressedUrl;
+                        const extension = mimeType === 'image/png' ? '.png' : '.jpg';
+                        link.download = `compressed_${file.name.replace(/\.[^/.]+$/, '')}${extension}`;
+                        link.click();
+                    };
+                }
+
+            } catch (error) {
+                console.error('压缩失败:', error);
+                alert(`图片 ${file.name} 压缩失败，请重试`);
+            }
+        }
+
+        downloadAllBtn.addEventListener('click', () => {
+            const zip = new JSZip();
+            compressedFiles.forEach(({ blob, file, mimeType }) => {
+                const extension = mimeType === 'image/png' ? '.png' : '.jpg';
+                const fileName = `compressed_${file.name.replace(/\.[^/.]+$/, '')}${extension}`;
+                zip.file(fileName, blob);
+            });
+
+            zip.generateAsync({ type: 'blob' }).then(content => {
+                saveAs(content, 'compressed_images.zip');
+            });
+        });
+
+        function updateSlider(value) {
+            qualityValue.textContent = value + '%';
+            qualitySlider.style.setProperty('--range-progress', `${value}%`);
+        }
+
+        qualitySlider.addEventListener('input', async (e) => {
+            const qualityPercent = parseInt(e.target.value);
+            updateSlider(qualityPercent);
+            if (currentFiles.length > 0) {
+                resetPreview();
+                if (!batchMode.checked && currentFiles.length === 1) {
+                    previewContainer.classList.add('single');
+                    await addSingleFilePreview(currentFiles[0]);
+                } else {
+                    previewContainer.classList.add('batch');
+                    for (const file of currentFiles) {
+                        await addBatchFilePreview(file);
+                    }
+                }
+            }
+        });
+
+        updateSlider(80);
+
+        themeToggle.addEventListener('click', () => {
+            isDarkMode = !isDarkMode;
+            document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+            themeIcon.innerHTML = isDarkMode
+                ? '<path d="M12 3a9 9 0 009 9c0 4.97-4.03 9-9 9S3 16.97 3 12s4.03-9 9-9zm0 1.5c-4.14 0-7.5 3.36-7.5 7.5s3.36 7.5 7.5 7.5 7.5-3.36 7.5-7.5A7.47 7.47 0 0112 4.5z"/>'
+                : '<path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 4.875a.75.75 0 011.06-.015l1.59 1.545a.75.75 0 01-1.045 1.075L7.515 5.935a.75.75 0 01-.015-1.06zM2.25 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3a.75.75 0 01-.75-.75zm3.225 6.615a.75.75 0 011.06.015l1.59-1.545a.75.75 0 11-1.045-1.075l-1.59 1.545a.75.75 0 01-.015 1.06zM12 21.75a.75.75 0 01-.75.75v-2.25a.75.75 0 011.5 0v2.25zM18.75 17.385a.75.75 0 01-.015 1.06l-1.59 1.545a.75.75 0 01-1.045-1.075l1.59-1.545a.75.75 0 011.06-.015zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5h2.25a.75.75 0 01.75.75zM17.385 6.525a.75.75 0 011.06-.015l1.59 1.545a.75.75 0 01-1.045 1.075L17.4 7.585a.75.75 0 01-.015-1.06zM12 18a6 6 0 100-12 6 6 0 000 12z"/>';
+        });
+
+        function cleanupMemory() {
+            compressedFiles.forEach(({ url }) => URL.revokeObjectURL(url));
+            const previews = previewContainer.querySelectorAll('.original-preview');
+            previews.forEach(preview => URL.revokeObjectURL(preview.src));
+        }
+
+        window.addEventListener('beforeunload', cleanupMemory);
+    </script>
+</body>
+</html>
